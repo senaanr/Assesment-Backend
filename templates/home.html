@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genetic Variation Reports</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        main {
+            margin: 20px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        form label {
+            margin-right: 10px;
+        }
+
+        form input {
+            margin-right: 20px;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .pagination a {
+            color: black;
+            float: left;
+            padding: 8px 16px;
+            text-decoration: none;
+            transition: background-color .3s;
+            border: 1px solid #ddd;
+            margin: 0 4px;
+        }
+
+        .pagination a.active {
+            background-color: #4CAF50;
+            color: white;
+            border: 1px solid #4CAF50;
+        }
+
+        .pagination a:hover:not(.active) {
+            background-color: #ddd;
+        }
+
+        th.sortable {
+            cursor: pointer;
+        }
+
+        th.sortable:hover {
+            background-color: #ddd;
+        }
+
+        th.sorted-asc::after {
+            content: '\25B2'; /* Unicode karakteri ile artan ok simgesi */
+        }
+
+        th.sorted-desc::after {
+            content: '\25BC'; /* Unicode karakteri ile azalan ok simgesi */
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Genetic Variation Reports</h1>
+</header>
+
+<main>
+    <form id="filterForm">
+        <label for="symbol">Symbol:</label>
+        <input type="text" id="symbol" name="symbol" placeholder="Enter Symbol">
+
+        <label for="af_vcf">AF VCF:</label>
+        <input type="number" id="af_vcf" name="af_vcf" placeholder="Enter AF VCF">
+
+        <button type="button" onclick="applyFilters()">Apply Filters</button>
+        <button type="button" onclick="resetFilters()">Reset Filters</button>
+
+    </form>
+
+    <table id="reportTable">
+        <thead>
+            <tr>
+                <th class="sortable" data-column="row" data-order="none">Row</th>
+                <th class="sortable" data-column="main_uploaded_variation" data-order="none">Uploaded Variation</th>
+                <th class="sortable" data-column="main_existing_variation" data-order="none">Existing Variation</th>
+                <th class="sortable" data-column="main_symbol" data-order="none">Symbol</th>
+                <th class="sortable" data-column="main_af_vcf" data-order="none">AF VCF</th>
+                <th class="sortable" data-column="main_dp" data-order="none">DP</th>
+                <th class="sortable" data-column="details2_provean" data-order="none">Provean</th>
+                <th class="sortable" data-column="details2_dann_score" data-order="none">Dann Score</th>
+                <th class="sortable" data-column="links_mondo" data-order="none">Mondo Link</th>
+                <th class="sortable" data-column="links_pheno_pubmed" data-order="none">Pheno Pubmed Link</th>
+            </tr>
+        </thead>
+        <tbody id="reportTableBody">
+            <!-- Reports will be dynamically added here -->
+            {% for report in reports.items %}
+                <tr>
+                    <td>{{ report.row }}</td>
+                    <td>{{ report.main_uploaded_variation }}</td>
+                    <td>{{ report.main_existing_variation }}</td>
+                    <td>{{ report.main_symbol }}</td>
+                    <td>{{ report.main_af_vcf }}</td>
+                    <td>{{ report.main_dp }}</td>
+                    <td>{{ report.details2_provean }}</td>
+                    <td>{{ report.details2_dann_score }}</td>
+                    <td>{{ report.links_mondo }}</td>
+                    <td>{{ report.links_pheno_pubmed }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="pagination" id="pagination">
+        {% for page_num in reports.iter_pages() %}
+            {% if page_num %}
+                <a href="{{ url_for('query', page=page_num) }}">{{ page_num }}</a>
+            {% else %}
+                <span class="current">{{ reports.page }}</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+</main>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Sıralama düğmelerine tıklandığında sıralama fonksiyonunu çağır
+        var sortableHeaders = document.querySelectorAll('.sortable');
+        sortableHeaders.forEach(function (header) {
+            header.addEventListener('click', function () {
+                handleSort(header);
+            });
+        });
+    });
+
+    function handleSort(header) {
+        var column = header.dataset.column;
+        var currentOrder = header.dataset.order;
+
+        // Sıralama düğmelerinin durumunu güncelle
+        resetSortIndicators();
+        if (currentOrder === 'asc' || currentOrder === 'none') {
+            header.dataset.order = 'desc';
+            header.classList.add('sorted-desc');
+        } else {
+            header.dataset.order = 'asc';
+            header.classList.add('sorted-asc');
+        }
+
+        // Sıralama işlemini gerçekleştir
+        fetchData(1); // Örnek olarak, her sıralama değişikliğinde ilk sayfaya git
+    }
+
+    function resetSortIndicators() {
+        // Tüm sıralama düğmelerini sıfırla
+        var sortableHeaders = document.querySelectorAll('.sortable');
+        sortableHeaders.forEach(function (header) {
+            header.classList.remove('sorted-asc', 'sorted-desc');
+        });
+    }
+
+    document.getElementById('filterForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        fetchData();
+    });
+
+    function applyFilters() {
+        var symbol = document.getElementById('symbol').value;
+        var af_vcf = document.getElementById('af_vcf').value;
+
+        var filters = {};
+        if (symbol) filters['main_symbol'] = symbol;
+        if (af_vcf) filters['main_af_vcf'] = af_vcf;
+
+        fetchData(1, filters);
+    }
+
+        // Function to reset filters
+        function resetFilters() {
+            document.getElementById('symbol').value = '';
+            document.getElementById('af_vcf').value = '';
+
+            var newUrl = window.location.pathname;
+            window.location.href = newUrl;
+        }
+
+        function handleSort(header) {
+            var column = header.dataset.column;
+            var currentOrder = header.dataset.order;
+
+            // Reset other sort indicators and set the current one
+            resetSortIndicators();
+            if (currentOrder === 'asc' || currentOrder === 'none') {
+                header.dataset.order = 'desc';
+                header.classList.add('sorted-desc');
+            } else {
+                header.dataset.order = 'asc';
+                header.classList.add('sorted-asc');
+            }
+
+            // Fetch data with the updated sorting information
+            fetchData(1, {}, [{ column: column, order: header.dataset.order }]);
+        }
+
+
+    function fetchData(page = 1, filters = {},ordering = []) {
+        // Filtre, sıralama, sayfa ve sayfa boyutu bilgilerini al
+        var ordering = getSortingOrder();
+        var page_size = 10;
+
+        // Flask sunucuya istek gönder
+        fetch('/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'filters': filters,
+                'ordering': ordering,
+                'page': page,
+                'page_size': page_size
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Sadece tablo ve sayfalama bilgilerini güncelle
+            updateTable(data.results);
+            updatePagination(data.page, page_size, data.count);
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+
+    function getSortingOrder() {
+        var sortableHeaders = document.querySelectorAll('.sortable');
+        var sortingOrder = [];
+        sortableHeaders.forEach(function (header) {
+            var column = header.dataset.column;
+            var order = header.dataset.order || 'none';
+            if (order !== 'none') {
+                sortingOrder.push({ 'column': column, 'order': order });
+            }
+        });
+        return sortingOrder;
+}
+
+
+
+    function updateTable(results) {
+        var tableBody = document.getElementById('reportTableBody');
+        tableBody.innerHTML = '';  // Önceki içeriği temizle
+
+        // Yeni verileri tabloya ekle
+        for (var i = 0; i < results.length; i++) {
+            var row = results[i];
+            var newRow = '<tr>' +
+                '<td>' + row.row + '</td>' +
+                '<td>' + row.main_uploaded_variation + '</td>' +
+                '<td>' + row.main_existing_variation + '</td>' +
+                '<td>' + row.main_symbol + '</td>' +
+                '<td>' + row.main_af_vcf + '</td>' +
+                '<td>' + row.main_dp + '</td>' +
+                '<td>' + row.details2_provean + '</td>' +
+                '<td>' + row.details2_dann_score + '</td>' +
+                '<td>' + row.links_mondo + '</td>' +
+                '<td>' + row.links_pheno_pubmed + '</td>' +
+                '</tr>';
+            tableBody.innerHTML += newRow;
+        }
+    }
+
+    function updatePagination(currentPage, pageSize, totalCount) {
+        var paginationDiv = document.getElementById('pagination');
+        paginationDiv.innerHTML = '';  // Önceki içeriği temizle
+
+        // Toplam sayfa sayısını hesapla
+        var totalPages = Math.ceil(totalCount / pageSize);
+
+        // Sayfalama bağlantılarını ekle
+        for (var i = 1; i <= totalPages; i++) {
+            var link = document.createElement('a');
+            link.href = '#';
+            link.textContent = i;
+
+            if (i === currentPage) {
+                link.classList.add('active');
+            }
+
+            link.addEventListener('click', function(event) {
+                event.preventDefault();
+                // Sayfa numarasını al
+                var page = parseInt(event.target.textContent);
+                // Verileri çek ve tabloyu güncelle
+                fetchData(page);
+            });
+
+            paginationDiv.appendChild(link);
+        }
+    }
+
+    // İlk yüklemede verileri çek ve tabloyu güncelle
+    document.addEventListener('DOMContentLoaded', function () {
+    // Sıralama düğmelerine tıklandığında sıralama fonksiyonunu çağır
+    var sortableHeaders = document.querySelectorAll('.sortable');
+    sortableHeaders.forEach(function (header) {
+        header.addEventListener('click', function () {
+            handleSort(header);
+        });
+    });
+
+    // Additional event listener for popstate
+    window.addEventListener('popstate', function () {
+        fetchData();
+    });
+});
+
+</script>
+
+</body>
+</html>
